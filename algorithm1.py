@@ -6,7 +6,7 @@ C = {(0, 1): 0.8}            # TODO: map idx pairs to coocurrence
 omega = [0]*len(dictionary)  # TODO
 
 
-def jhat(s: int, NEG: list[int], POS: list[int], Dhat: list[int]) -> float:
+def comp_Jhat(s: int, NEG: list[int], POS: list[int], Dhat: list[int]) -> float:
   # TODO
   pass
 
@@ -79,7 +79,7 @@ def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: f
   cooccurs = [C[i].sum() for i in range(D)]
   M_norms = {u: M[u].norm().item() ** 2 for u in A}
   t_dots = {t: M[s].dot(M[t]).item() for t in A}
-  jp = jhat(s, NEG, POS, Dhat)
+  jp = comp_Jhat(s, NEG, POS, Dhat)
   state = CompDiffState(jp, cooccurs, M_norms, t_dots, 0)
   while state.Jhat < t_rank + alpha and state.Delta_size < max_delta:
     dmap: dict[tuple[int, int], CompDiffState] = {}
