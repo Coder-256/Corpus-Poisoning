@@ -1,5 +1,4 @@
 import random
-from typing import Optional
 from math import ceil
 
 Gamma = 5  # TODO
