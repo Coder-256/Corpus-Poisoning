@@ -68,7 +68,7 @@ def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: f
       p2 = Mp[s].dot(Mp[t])/sqrt(Mp[s].norm()*Mp[t].norm())
       dsim2[t] = p2 - p1
 
-    dsim12 = {(dsim1[t]+dsim2[t])/2 for t in targets}
+    dsim12 = {t: (dsim1[t]+dsim2[t])/2 for t in targets}
     dJhat_numer = sum(dsim12[t] for t in POS) - sum(dsim12[t] for t in NEG)
     dJhat = dJhat_numer/(len(POS)+len(NEG))
 
