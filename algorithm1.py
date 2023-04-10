@@ -20,10 +20,9 @@ class CompDiffState:
     self.Delta_size = Delta_size
 
 
-def model_f(u: int, v: int, c: float, epsilon: float) -> float:
+def model_f(u: int, v: int, c: float, epsilon: float, B: dict[int, float]) -> float:
   # TODO
   pass
-
 
 
 def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: float, max_delta: float, M: torch.Tensor) -> list[int]:
@@ -33,46 +32,47 @@ def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: f
     # TODO: implement and find correct type for state
     # returns (jhat, cooccurs, M_norms, t_dots, Delta_size)}
 
-    Cp = {} # TODO: updated cooccurrence
-    Bp = {} # TODO: updated bias
-    Mp = torch.tensor() # TODO: updated distributional matrix
+    Cp = {}  # TODO: updated cooccurrence
+    Bp = {}  # TODO: updated bias
+    Mp = torch.tensor()  # TODO: updated distributional matrix
     D = len(dictionary)
-    targets = POS + NEG # TODO ???
+    targets = POS + NEG  # TODO ???
     u_todo = [s] + targets
 
-    fp_e60 = {(u, t): model_f(s, t, Cp[u].sum(), exp(-60)) for u in u_todo for t in targets}
-    fp_0 = {t: model_f(s, t, Cp[s][t], 0) for t in targets}
+    fp_e60 = {(u, t): model_f(s, t, Cp[u].sum(), exp(-60), Bp)
+              for u in u_todo for t in targets}
+    fp_0 = {t: model_f(s, t, Cp[s][t], 0, Bp) for t in targets}
 
-    d_Mp_si = torch.tensor() # TODO
-    d_Mp_ts = 123 if i in POS or i in NEG else 0 # TODO
+    d_Mp_si = torch.tensor()  # TODO
+    d_Mp_ts = 123 if i in POS or i in NEG else 0  # TODO
     new_t_dots = dict(state.t_dots)
     for t in new_t_dots:
       new_t_dots[t] += d_Mp_si.dot(M[t][i]) + d_Mp_ts
-    
-    d_Mp_si2 = 0 # TODO
+
+    d_Mp_si2 = 0  # TODO
     new_Mp_s_norm = state.M_norms[s] + d_Mp_si2
     # TODO: if i in POS or i in NEG, get new_Mp_i_norm
-    new_Mp_t_norm = 0 # TODO
+    new_Mp_t_norm = 0  # TODO
 
     dsim1 = {}
     for t in targets:
       p1 = fp_0[t]/sqrt(fp_e60[(s, t)]*fp_e60[(t, t)])
-      p2 = model_f(s, t, Cp[s][t], 0)/sqrt(model_f(s, t, Cp[s].sum(), exp(-60))*model_f(s, t, Cp[t].sum(), exp(-60)))
+      fs = model_f(s, t, Cp[s].sum(), exp(-60), Bp)
+      ft = model_f(s, t, Cp[t].sum(), exp(-60), Bp)
+      p2 = model_f(s, t, Cp[s][t], 0, Bp)/sqrt(fs*ft)
       dsim1[t] = p1 - p2
-    
+
     dsim2 = {}
     for t in targets:
       p1 = new_t_dots[t]/sqrt(new_Mp_s_norm*new_Mp_t_norm)
       p2 = Mp[s].dot(Mp[t])/sqrt(Mp[s].norm()*Mp[t].norm())
       dsim2[t] = p2 - p1
-    
+
     dsim12 = {(dsim1[t]+dsim2[t])/2 for t in targets}
     dJhat_numer = sum(dsim12[t] for t in POS) - sum(dsim12[t] for t in NEG)
     dJhat = dJhat_numer/(len(POS)+len(NEG))
 
     # TODO: return CompDiffState(dJhat, ...)
-
-
 
   Dhat = [0]*D
   A = POS + NEG + [s]
