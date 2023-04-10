@@ -2,7 +2,7 @@ import torch
 from math import exp, sqrt
 
 dictionary = ["foo", "bar"]  # TODO
-coocur = {(0, 1): 0.8}       # TODO: map idx pairs to coocurrence
+C = {(0, 1): 0.8}            # TODO: map idx pairs to coocurrence
 omega = [0]*len(dictionary)  # TODO
 
 
@@ -40,7 +40,7 @@ def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: f
     targets = POS + NEG # TODO ???
     u_todo = [s] + targets
 
-    fp_e60 = {(u, t): model_f(s, t, sum(Cp[u][r] for r in range(D)), exp(-60)) for u in u_todo for t in targets}
+    fp_e60 = {(u, t): model_f(s, t, Cp[u].sum(), exp(-60)) for u in u_todo for t in targets}
     fp_0 = {t: model_f(s, t, Cp[s][t], 0) for t in targets}
 
     d_Mp_si = torch.tensor() # TODO
@@ -76,7 +76,7 @@ def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: f
 
   Dhat = [0]*D
   A = POS + NEG + [s]
-  cooccurs = [sum(coocur[i][r] for r in range(D)) for i in range(D)]
+  cooccurs = [C[i].sum() for i in range(D)]
   M_norms = {u: M[u].norm().item() ** 2 for u in A}
   t_dots = {t: M[s].dot(M[t]).item() for t in A}
   jp = jhat(s, NEG, POS, Dhat)
