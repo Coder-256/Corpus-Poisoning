@@ -121,23 +121,17 @@ class CorpusPoison:
     self.alpha = alpha
     self.max_delta = max_delta
     self.T = T = POS + NEG
-    # D = len(self.dictionary)
+    A = POS + NEG + [s]
     keep = np.fromiter(
-        j for j in range(len(self.dictionary))
-        if j == i or j in A
-        or any(self.model_f(u, j, C[u, j], 0, B) > 0 for u in A)
+        (j for j in range(len(self.dictionary))
+         if j in A or any(self.model_f(u, j, C[u, j], 0, B) > 0 for u in A)),
+        dtype=np.int_
     )
     K = len(keep)
-
     self.Dhat = Dhat = [0.]*K
-
     C = self.C
     B = self.B
-    # D = len(self.dictionary)
     ntargets = len(T)
-    A = POS + NEG + [s]
-    # TODO: Cs = C[s]
-
     Csum = {j: C[j].sum() for j in keep}
 
     def C_row(i):
