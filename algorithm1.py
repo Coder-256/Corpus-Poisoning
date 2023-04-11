@@ -1,6 +1,6 @@
 import torch
 from math import exp, log, sqrt
-from numba import guvectorize
+from numba import cuda
 
 dictionary = ["foo", "bar"]  # TODO
 C = {(0, 1): 0.8}            # TODO: map idx pairs to coocurrence
@@ -38,7 +38,135 @@ def model_f(u: int, v: int, c: float, epsilon: float, B: dict[int, float]) -> fl
   return max(log(c)-B[u]-B[v], epsilon)
 
 
+
 def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: float, max_delta: float, M: torch.Tensor) -> list[int]:
+  D = len(dictionary)
+  T = POS + NEG
+  ntargets = len(T)
+  Dhat = [0.]*D
+  Cs = C[s]
+
+  @cuda.jit(device=True)
+  def cuda_model_f(u, v, c, epsilon, B):
+    return cuda.libdevice.fmaxf(cuda.libdevice.logf(c)-B[u]-B[v], epsilon)
+
+  # note: ntargets is captured
+  @cuda.jit
+  def sim2_kernel(s, delta, Cps, Mdot, Ms_norm, M_t, M_t_norm, B, T_wgt, res):
+    i = cuda.grid(1)
+    sim2 = 0.
+    for t in range(ntargets):
+      old_M_si = cuda_model_f(s, i, Cps[i], 0, B)
+      new_M_si = cuda_model_f(s, i, Cps[i]+delta, 0, B)
+      dot_id = Mdot[t] + (new_M_si-old_M_si)*M_t[t, i]
+      Ms_normid = Ms_norm + new_M_si*new_M_si - old_M_si*old_M_si
+      Mt_normid = M_t_norm[t]
+      sim2 += T_wgt[t]*dot_id/(Ms_normid*Mt_normid)
+    res[i] = sim2
+  
+  @cuda.jit
+  def sim12(s, sim1, sim2v):
+    i = cuda.grid(1)
+    res[i] = (sim1+sim2v[i])/2
+
+  def comp_diff_naive(i: int, delta: float, state: CompDiffState) -> CompDiffState:
+    Csumid = TensorPrime(state.Csum)
+    Csumid[s] += delta
+    if i != s:
+      Csumid[i] += delta
+    fp_e60 = {(u, t): model_f(s, t, Csumid[u], exp(-60), B)
+              for u in T+[s] for t in T}
+    fp_0 = {t: model_f(s, t, Cs[t]+Dhat[t]+delta, 0, B) for t in T}
+
+    old_Mp_si = model_f(s, i, Cs[i]+Dhat[i], 0, B)
+    new_Mp_si = model_f(s, i, Cs[i]+Dhat[i]+delta, 0, B)
+    d_Mp_si = new_Mp_si - old_Mp_si
+    t_dotsid = TensorPrime(state.t_dots)
+    for t in state.t_dots:
+      t_dotsid[t] += d_Mp_si * M[t][i]
+      if i == t:
+        t_dotsid[i] += (new_Mp_si - old_Mp_si) * M[s][s]
+
+    M_normsid = TensorPrime(state.M_norms)
+    d_Mp_si2 = new_Mp_si*new_Mp_si - old_Mp_si*old_Mp_si
+    M_normsid[s] += d_Mp_si2
+    if i in T:
+      M_normsid[i] += d_Mp_si2
+
+    dsim1 = {}
+    for t in T:
+      p1 = fp_0[t]/sqrt(fp_e60[(s, t)]*fp_e60[(t, t)])
+      fs = model_f(s, t, state.Csum[s], exp(-60), B)
+      ft = model_f(s, t, state.Csum[t], exp(-60), B)
+      p2 = model_f(s, t, Cs[t]+Dhat[t], 0, B)/sqrt(fs*ft)
+      dsim1[t] = p1 - p2
+
+    dsim2 = {}
+    for t in T:
+      p1 = t_dotsid[t]/sqrt(M_normsid[s]*M_normsid[t])
+      p2 = state.t_dots[t]/sqrt(state.M_norms[s]*state.M_norms[t])
+      dsim2[t] = p2 - p1
+
+    dsim12 = {t: (dsim1[t]+dsim2[t])/2 for t in T}
+    dJhat_numer = sum(dsim12[t] for t in POS) - sum(dsim12[t] for t in NEG)
+    dJhat = dJhat_numer/(len(POS)+len(NEG))
+
+    # TODO: return CompDiffState(dJhat, ...)
+  
+  t = 123
+  Mt = [model_f(t, i, C[t][i], 0) for i in range(D)]
+  res = [] # TODO: np.zeros() or something uninitialized
+  sim2_vec_opt(delta, state.M_norms[s], B[s], C[s]+Dhat, Mt, state.t_dots[t], B, res)
+  res /= Mt.norm()
+      
+  
+  # use naive if: i in T or i is a made-up word (in which case, bias depends on delta)
+  # always need: M_norms, t_dots, Dhat, omega, Csum, etc...
+  # per-item: M[t][i] for all t in T, Cs[i], Dhat[i]
+
+
+  # TODO: for simple cases (ie. cases that don't need naive), sim1 doesn't even depend on delta
+
+  A = POS + NEG + [s]
+  Csum = [C[i].sum() for i in range(D)]
+  M_norms = {u: M[u].norm().item() ** 2 for u in A}
+  t_dots = {t: M[s].dot(M[t]).item() for t in A}
+  jp = comp_Jhat(s, NEG, POS, Dhat)
+  state = CompDiffState(jp, Csum, M_norms, t_dots, 0)
+  while state.Jhat < t_rank + alpha and state.Delta_size < max_delta:
+    dmap: dict[tuple[int, int], CompDiffState] = {}
+    # TODO: Parallelize
+    for i in range(D):
+      if i == s:
+        # TODO: Should we actually handle this?
+        continue
+      for l in range(1, 31):
+        delta = l/5
+        dmap[(i, delta)] = comp_diff_naive(i, delta, state)
+        dmap[(i, delta)].Delta_size = delta/omega[i]
+    i_star, delta_star = -1, -1
+    best = -1
+    for i, delta in dmap:
+      cd_state = dmap[(i, delta)]
+      score = cd_state.Jhat / cd_state.Delta_size
+      if score > best:
+        best = score
+        i_star, delta_star = i, delta
+    cd_star = dmap[(i_star, delta_star)]
+    # TODO: Is "+=" the right operator for everything here??
+    state.Jhat += cd_star.Jhat
+    # TODO: Why is the pseudocode missing the stars here?
+    state.Csum += cd_star.Csum
+    state.M_norms += cd_star.M_norms
+    state.t_dots += cd_star.t_dots
+    # TODO: Why isn't this in the pseudocode?:
+    Dhat[i_star] += delta_star
+
+  return Dhat
+
+
+
+def solve_greedy_naive(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: float, max_delta: float, M: torch.Tensor) -> list[int]:
   D = len(dictionary)
   T = POS + NEG
   Dhat = [0.]*D
