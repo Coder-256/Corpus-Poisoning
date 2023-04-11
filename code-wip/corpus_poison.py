@@ -15,15 +15,16 @@ def cuda_model_f(u, v, c, epsilon, B):
 @cuda.jit
 def sim2_kernel(s, delta, Cps, Mdots_t, Ms_norm, M_t, M_t_norm, B, T_wgt, res):
   i = cuda.grid(1)
-  sim2 = 0.
-  for t in range(M_t.shape[0]):
-    old_M_si = cuda_model_f(s, i, Cps[i], 0, B)
-    new_M_si = cuda_model_f(s, i, Cps[i]+delta, 0, B)
-    dot_id = Mdots_t[t] + (new_M_si-old_M_si)*M_t[t, i]
-    Ms_normid = Ms_norm + new_M_si*new_M_si - old_M_si*old_M_si
-    Mt_normid = M_t_norm[t]
-    sim2 += T_wgt[t]*dot_id/(Ms_normid*Mt_normid)
-  res[i] = sim2
+  if i < Cps.shape[0]:
+    sim2 = 0.
+    for t in range(M_t.shape[0]):
+      old_M_si = cuda_model_f(s, i, Cps[i], 0, B)
+      new_M_si = cuda_model_f(s, i, Cps[i]+delta, 0, B)
+      dot_id = Mdots_t[t] + (new_M_si-old_M_si)*M_t[t, i]
+      Ms_normid = Ms_norm + new_M_si*new_M_si - old_M_si*old_M_si
+      Mt_normid = M_t_norm[t]
+      sim2 += T_wgt[t]*dot_id/(Ms_normid*Mt_normid)
+    res[i] = sim2
 
 
 class CorpusPoison:
