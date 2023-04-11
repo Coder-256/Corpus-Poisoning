@@ -4,21 +4,19 @@ import cupy as cp
 from math import exp, log, sqrt
 from numba import cuda
 
+np.seterr(all='raise')
+
 rng = np.random.default_rng()
 
 dictionary = ["foo", "bar"]  # TODO
 D = len(dictionary)
-C = rng.random((D, D), dtype=np.float32) # TODO
-B = rng.random(D, dtype=np.float32)      # TODO
-omega = np.ones(D)                       # TODO
-
-def comp_Jhat(s: int, NEG: list[int], POS: list[int], Dhat: list[int]) -> float:
-  # TODO
-  pass
+C = rng.random((D, D), dtype=np.float32)*1000  # TODO
+B = rng.random(D, dtype=np.float32)/1000  # TODO
+omega = np.ones(D)                        # TODO
 
 
 class CompDiffState:
-  def __init__(self, Jhat: float, Csum: list[float], M_norms: dict[int, float], t_dots: dict[int, float], Delta_size: int):
+  def __init__(self, Jhat: float, Csum, M_norms, t_dots, Delta_size: int):
     self.Jhat = Jhat
     self.Csum = Csum
     self.M_norms = M_norms
@@ -42,11 +40,11 @@ class TensorPrime:
       other[key] = self.overrides[key]
 
 
-def model_f(u: int, v: int, c: float, epsilon: float, B: dict[int, float]) -> float:
+def model_f(u: int, v: int, c: float, epsilon: float, B) -> float:
   return max(log(c)-B[u]-B[v], epsilon)
 
 
-def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: float, max_delta: float, M: torch.Tensor) -> list[int]:
+def solve_greedy(s: int, POS, NEG, t_rank: float, alpha: float, max_delta: float):
   D = len(dictionary)
   T = POS + NEG
   ntargets = len(T)
@@ -55,7 +53,7 @@ def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: f
 
   @cuda.jit(device=True)
   def cuda_model_f(u, v, c, epsilon, B):
-    return cuda.libdevice.fmaxf(cuda.libdevice.logf(c)-B[u]-B[v], epsilon)
+    return max(log(c)-B[u]-B[v], epsilon)
 
   # note: ntargets is captured
   @cuda.jit
@@ -85,9 +83,9 @@ def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: f
     d_Mp_si = new_Mp_si - old_Mp_si
     t_dotsid = TensorPrime(state.t_dots)
     for t in state.t_dots:
-      t_dotsid[t] += d_Mp_si * M[t][i]
+      t_dotsid[t] += d_Mp_si * model_f(t, i, C[t][i], 0, B)
       if i == t:
-        t_dotsid[i] += (new_Mp_si - old_Mp_si) * M[s][s]
+        t_dotsid[i] += (new_Mp_si - old_Mp_si) * model_f(s, s, C[s][s], 0, B)
 
     M_normsid = TensorPrime(state.M_norms)
     d_Mp_si2 = new_Mp_si*new_Mp_si - old_Mp_si*old_Mp_si
@@ -129,24 +127,38 @@ def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: f
 
   A = POS + NEG + [s]
   Csum = [C[i].sum() for i in range(D)]
-  M_norms = {u: M[u].norm().item() ** 2 for u in A}
-  t_dots = {t: M[s].dot(M[t]).item() for t in A}
-  jp = comp_Jhat(s, NEG, POS, Dhat)
-  state = CompDiffState(jp, Csum, M_norms, t_dots, 0)
 
-  # Cps, Mdot, M_t, M_t_norm, B, T_wgt, res
+  def get_row(i):
+    return np.array([model_f(i, j, C[i][j], 0, B) for j in range(D)], dtype=np.float32)
+
+  M_norms = {u: np.linalg.norm(get_row(u)).item() ** 2 for u in A}
+  t_dots = {t: get_row(s).dot(get_row(t)).item() for t in A}
+  T_wgt = np.array([1]*len(POS) + [-1]*len(NEG), dtype=np.float32)
+
+  start_sim1 = start_sim2 = 0.
+  for t, w in zip(T, T_wgt):
+    fs = model_f(s, t, Csum[s], exp(-60), B)
+    ft = model_f(s, t, Csum[t], exp(-60), B)
+    start_sim1 += w*model_f(s, t, Cs[t]+Dhat[t], 0, B)/sqrt(fs*ft)
+    start_sim2 += w*t_dots[t]/sqrt(M_norms[s]*M_norms[t])
+  start_sim12 = (start_sim1+start_sim2)/2
+
+  state = CompDiffState(start_sim12, Csum, M_norms, t_dots, 0)
+
+  # s, delta, Cps, Mdots_t, Ms_norm, M_t, M_t_norm, B, T_wgt, res
+  Ms = np.array([model_f(s, i, Cs[i], 0, B) for i in range(D)], dtype=np.float32)
+  Ms_norm = np.linalg.norm(Ms)
   Dstride = (4*D+31) & (~31)  # TODO: should this be larger?
+  pad = Dstride//4 - D
   Mdots_t = np.array([C[s].dot(C[t])
                      for t in range(ntargets)], dtype=np.float32)
-  M_t = np.array([[model_f(t, i, C[t][i], 0) for i in range(D)]
-                 for t in T], dtype=np.float32)
-  T_wgt = np.array([1]*len(POS) + [-1]*len(NEG), dtype=np.float32)
+  M_t = np.array([[model_f(t, i, C[t][i], 0, B)
+                 for i in range(D)]+[0]*pad for t in T], dtype=np.float32)
+
 
   sim2_Cps = cuda.to_device(C[s])
   sim2_Mdots_t = cuda.to_device(Mdots_t)
-  sim2_M_t = cuda.device_array(
-      (ntargets, D), dtype=np.float32, strides=(Dstride, 4))
-  sim2_M_t.copy_to_device(M_t)
+  sim2_M_t = cuda.to_device(M_t)
   sim2_M_t_norm = cuda.to_device(np.linalg.norm(M_t, axis=1))
   sim2_B = cuda.to_device(B)
   sim2_T_wgt = cuda.to_device(T_wgt)
@@ -155,21 +167,22 @@ def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: f
   threadsperblock = 32
   blockspergrid = (D + (threadsperblock - 1)) // threadsperblock
 
+  print("will start...")
   while state.Jhat < t_rank + alpha and state.Delta_size < max_delta:
-    dmap: dict[tuple[int, int], CompDiffState] = {}
+    dmap = {}
 
     for l in range(1, 31):
       delta = l/5
-      sim1_numer = np.array([model_f(s, t, Cs[t]+delta, 0)
+      sim1_numer = np.array([model_f(s, t, Cs[t]+delta, 0, B)
                             for t in T], dtype=np.float32)
       sim1_fsum_s = np.array(
-          [model_f(s, t, state.Csum[s]+delta, exp(-60)) for t in T], dtype=np.float32)
+          [model_f(s, t, state.Csum[s]+delta, exp(-60), B) for t in T], dtype=np.float32)
       sim1_fsum_t = np.array(
-          [model_f(s, t, state.Csum[t], exp(-60)) for t in T], dtype=np.float32)
+          [model_f(s, t, state.Csum[t], exp(-60), B) for t in T], dtype=np.float32)
       sim1 = ((sim1_numer/sqrt(sim1_fsum_s*sim1_fsum_t))*T_wgt).sum()
 
       sim2_kernel[blockspergrid, threadsperblock](
-          s, delta, sim2_Cps, sim2_Mdots_t, sim2_M_t, sim2_M_t_norm, sim2_B, sim2_T_wgt, sim2_res)
+          s, delta, sim2_Cps, sim2_Mdots_t, Ms_norm, sim2_M_t, sim2_M_t_norm, sim2_B, sim2_T_wgt, sim2_res)
 
       sim2_res_cp = cp.asarray(sim2_res)
       sim12 = (sim1+sim2_res_cp)/2
@@ -177,7 +190,7 @@ def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: f
       # get rid of all j for j in T so we don't pick it up during argmax
       for j in T:
         sim12[j] = -100
-      i = sim12.argmax()[0]
+      i = sim12.argmax().item()
 
       # fill in dmap for argmax and all i in POS or NEG
       for j in T + [i]:
@@ -198,4 +211,9 @@ def solve_greedy(s: int, POS: list[int], NEG: list[int], t_rank: float, alpha: f
     cd_star.t_dots.apply(state.t_dots)
     Dhat[i_star] += delta_star
 
+    print("Iterated!", i_star, delta, state.Jhat)
+
   return Dhat
+
+
+solve_greedy(0, [1], [], 1000, 0.01, 10)
