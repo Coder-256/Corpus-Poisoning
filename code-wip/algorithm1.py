@@ -146,7 +146,8 @@ def solve_greedy(s: int, POS, NEG, t_rank: float, alpha: float, max_delta: float
   state = CompDiffState(start_sim12, Csum, M_norms, t_dots, 0)
 
   # s, delta, Cps, Mdots_t, Ms_norm, M_t, M_t_norm, B, T_wgt, res
-  Ms = np.array([model_f(s, i, Cs[i], 0, B) for i in range(D)], dtype=np.float32)
+  Ms = np.array([model_f(s, i, Cs[i], 0, B)
+                for i in range(D)], dtype=np.float32)
   Ms_norm = np.linalg.norm(Ms)
   Dstride = (4*D+31) & (~31)  # TODO: should this be larger?
   pad = Dstride//4 - D
@@ -154,7 +155,6 @@ def solve_greedy(s: int, POS, NEG, t_rank: float, alpha: float, max_delta: float
                      for t in range(ntargets)], dtype=np.float32)
   M_t = np.array([[model_f(t, i, C[t][i], 0, B)
                  for i in range(D)]+[0]*pad for t in T], dtype=np.float32)
-
 
   sim2_Cps = cuda.to_device(C[s])
   sim2_Mdots_t = cuda.to_device(Mdots_t)
