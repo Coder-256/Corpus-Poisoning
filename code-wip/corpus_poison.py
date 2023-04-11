@@ -4,11 +4,14 @@ import cupy as cp
 from numba import cuda
 from math import exp, log, sqrt, ceil
 
+
 @cuda.jit(device=True)
 def cuda_model_f(u, v, c, epsilon, B):
   return max(log(c)-B[u]-B[v], epsilon)
 
 # note: ntargets is captured
+
+
 @cuda.jit
 def sim2_kernel(s, delta, Cps, Mdots_t, Ms_norm, M_t, M_t_norm, B, T_wgt, res):
   i = cuda.grid(1)
@@ -21,6 +24,7 @@ def sim2_kernel(s, delta, Cps, Mdots_t, Ms_norm, M_t, M_t_norm, B, T_wgt, res):
     Mt_normid = M_t_norm[t]
     sim2 += T_wgt[t]*dot_id/(Ms_normid*Mt_normid)
   res[i] = sim2
+
 
 class CorpusPoison:
   class CompDiffState:
@@ -51,10 +55,10 @@ class CorpusPoison:
     self.C = cooccur
     self.B = bias
     self.omega = omega
-  
+
   def model_f(self, u: int, v: int, c: float, epsilon: float, B) -> float:
     return max(log(c)-B[u]-B[v], epsilon)
-  
+
   def comp_diff_naive(self, i: int, delta: float, state: CompDiffState) -> CompDiffState:
     s = self.s
     C = self.C
@@ -78,7 +82,8 @@ class CorpusPoison:
     for t in state.t_dots:
       t_dotsid[t] += d_Mp_si * self.model_f(t, i, C[t][i], 0, B)
       if i == t:
-        t_dotsid[i] += (new_Mp_si - old_Mp_si) * self.model_f(s, s, C[s][s], 0, B)
+        t_dotsid[i] += (new_Mp_si - old_Mp_si) * \
+            self.model_f(s, s, C[s][s], 0, B)
 
     M_normsid = self.TensorPrime(state.M_norms)
     d_Mp_si2 = new_Mp_si*new_Mp_si - old_Mp_si*old_Mp_si
@@ -150,9 +155,9 @@ class CorpusPoison:
     Dstride = (4*D+31) & (~31)  # TODO: should this be larger?
     pad = Dstride//4 - D
     Mdots_t = np.array([C[s].dot(C[t])
-                      for t in range(ntargets)], dtype=np.float32)
+                        for t in range(ntargets)], dtype=np.float32)
     M_t = np.array([[self.model_f(t, i, C[t][i], 0, B)
-                  for i in range(D)]+[0]*pad for t in T], dtype=np.float32)
+                     for i in range(D)]+[0]*pad for t in T], dtype=np.float32)
 
     sim2_Cps = cuda.to_device(C[s])
     sim2_Mdots_t = cuda.to_device(Mdots_t)
