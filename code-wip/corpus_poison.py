@@ -46,11 +46,11 @@ class CorpusPoison:
       for key in self.overrides:
         other[key] = self.overrides[key]
 
-  def __init__(self, dictionary, cooccur, bias):
+  def __init__(self, dictionary, cooccur, bias, omega):
     self.dictionary = dictionary
     self.C = cooccur
     self.B = bias
-
+    self.omega = omega
   
   def model_f(self, u: int, v: int, c: float, epsilon: float, B) -> float:
     return max(log(c)-B[u]-B[v], epsilon)
@@ -112,8 +112,9 @@ class CorpusPoison:
     self.NEG = NEG
     self.t_rank = t_rank
     self.alpha = alpha
-    self.max_delta = self.max_delta
+    self.max_delta = max_delta
     self.T = T = POS + NEG
+    D = len(self.dictionary)
     self.Dhat = Dhat = [0.]*D
 
     C = self.C
@@ -211,10 +212,10 @@ class CorpusPoison:
       Dhat[i_star] += delta_star
 
       # Update CUDA state
-      for t, x in cd_star.M_norms.overrides.values():
+      for t, x in cd_star.M_norms.overrides.items():
         if t in T:
           sim2_M_t_norm[T.index(t)] = x
-      for t, x in cd_star.t_dots.overrides.values():
+      for t, x in cd_star.t_dots.overrides.items():
         if t in T:
           sim2_Mdots_t[T.index(t)] = x
       sim2_Cps[i_star] += delta_star
