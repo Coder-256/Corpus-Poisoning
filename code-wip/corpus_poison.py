@@ -3,6 +3,7 @@ import numpy as np
 import cupy as cp
 from numba import cuda
 from math import exp, log, sqrt, ceil
+from bisect import bisect_left
 
 
 @cuda.jit(device=True)
@@ -74,17 +75,17 @@ class CorpusPoison:
       Csumid[i] += delta
     fp_e60 = {(u, t): self.model_f(s, t, Csumid[u], exp(-60), B)
               for u in T+[s] for t in T}
-    fp_0 = {t: self.model_f(s, t, C[s][t]+Dhat[t]+delta, 0, B) for t in T}
+    fp_0 = {t: self.model_f(s, t, C[s, t]+Dhat[t]+delta, 0, B) for t in T}
 
-    old_Mp_si = self.model_f(s, i, C[s][i]+Dhat[i], 0, B)
-    new_Mp_si = self.model_f(s, i, C[s][i]+Dhat[i]+delta, 0, B)
+    old_Mp_si = self.model_f(s, i, C[s, i]+Dhat[i], 0, B)
+    new_Mp_si = self.model_f(s, i, C[s, i]+Dhat[i]+delta, 0, B)
     d_Mp_si = new_Mp_si - old_Mp_si
     t_dotsid = self.TensorPrime(state.t_dots)
     for t in state.t_dots:
-      t_dotsid[t] += d_Mp_si * self.model_f(t, i, C[t][i], 0, B)
+      t_dotsid[t] += d_Mp_si * self.model_f(t, i, C[t, i], 0, B)
       if i == t:
         t_dotsid[i] += (new_Mp_si - old_Mp_si) * \
-            self.model_f(s, s, C[s][s], 0, B)
+            self.model_f(s, s, C[s, s], 0, B)
 
     M_normsid = self.TensorPrime(state.M_norms)
     d_Mp_si2 = new_Mp_si*new_Mp_si - old_Mp_si*old_Mp_si
@@ -97,7 +98,7 @@ class CorpusPoison:
       p1 = fp_0[t]/sqrt(fp_e60[(s, t)]*fp_e60[(t, t)])
       fs = self.model_f(s, t, state.Csum[s], exp(-60), B)
       ft = self.model_f(s, t, state.Csum[t], exp(-60), B)
-      p2 = self.model_f(s, t, C[s][t]+Dhat[t], 0, B)/sqrt(fs*ft)
+      p2 = self.model_f(s, t, C[s, t]+Dhat[t], 0, B)/sqrt(fs*ft)
       dsim1[t] = p1 - p2
 
     dsim2 = {}
@@ -120,56 +121,62 @@ class CorpusPoison:
     self.alpha = alpha
     self.max_delta = max_delta
     self.T = T = POS + NEG
-    D = len(self.dictionary)
-    self.Dhat = Dhat = [0.]*D
+    # D = len(self.dictionary)
+    keep = np.fromiter(
+        j for j in range(len(self.dictionary))
+        if j == i or j in A
+        or any(self.model_f(u, j, C[u, j], 0, B) > 0 for u in A)
+    )
+    K = len(keep)
+
+    self.Dhat = Dhat = [0.]*K
 
     C = self.C
     B = self.B
-    D = len(self.dictionary)
+    # D = len(self.dictionary)
     ntargets = len(T)
-    Cs = C[s]
-
     A = POS + NEG + [s]
-    Csum = [C[i].sum() for i in range(D)]
+    # TODO: Cs = C[s]
 
-    def get_row(i):
-      return np.array([self.model_f(i, j, C[i][j], 0, B) for j in range(D)], dtype=np.float32)
+    Csum = {j: C[j].sum() for j in keep}
 
-    M_norms = {u: np.linalg.norm(get_row(u)).item() ** 2 for u in A}
-    t_dots = {t: get_row(s).dot(get_row(t)).item() for t in A}
+    def C_row(i):
+      return np.array([self.model_f(i, j, C[i, j], 0, B) for j in keep], dtype=np.float32)
+
+    M_norms = {u: np.linalg.norm(C_row(u)).item() ** 2 for u in A}
+    t_dots = {t: C_row(s).dot(C_row(t)).item() for t in A}
     T_wgt = np.array([1]*len(POS) + [-1]*len(NEG), dtype=np.float32)
 
     start_sim1 = start_sim2 = 0.
     for t, w in zip(T, T_wgt):
       fs = self.model_f(s, t, Csum[s], exp(-60), B)
       ft = self.model_f(s, t, Csum[t], exp(-60), B)
-      start_sim1 += w*self.model_f(s, t, Cs[t]+Dhat[t], 0, B)/sqrt(fs*ft)
+      start_sim1 += w*self.model_f(s, t, C[s, t]+Dhat[t], 0, B)/sqrt(fs*ft)
       start_sim2 += w*t_dots[t]/sqrt(M_norms[s]*M_norms[t])
     start_sim12 = (start_sim1+start_sim2)/2
 
     state = self.CompDiffState(start_sim12, Csum, M_norms, t_dots, 0)
 
     # s, delta, Cps, Mdots_t, Ms_norm, M_t, M_t_norm, B, T_wgt, res
-    Ms = np.array([self.model_f(s, i, Cs[i], 0, B)
-                  for i in range(D)], dtype=np.float32)
-    Ms_norm = np.linalg.norm(Ms)
-    Dstride = (4*D+31) & (~31)  # TODO: should this be larger?
-    pad = Dstride//4 - D
+    Ms_norm = np.linalg.norm(
+        np.array([self.model_f(s, j, C[s, j], 0, B) for j in keep], dtype=np.float32))
+    Kstride = (4*K+31) & (~31)  # TODO: should this be larger?
+    pad = Kstride//4 - K
     Mdots_t = np.array([C[s].dot(C[t])
                         for t in range(ntargets)], dtype=np.float32)
-    M_t = np.array([[self.model_f(t, i, C[t][i], 0, B)
-                     for i in range(D)]+[0]*pad for t in T], dtype=np.float32)
+    M_t = np.array([[self.model_f(t, j, C[t, j], 0, B)
+                     for j in keep]+[0]*pad for t in T], dtype=np.float32)
 
-    sim2_Cps = cuda.to_device(C[s])
+    sim2_Cps = cuda.to_device(C[s, keep])
     sim2_Mdots_t = cuda.to_device(Mdots_t)
     sim2_M_t = cuda.to_device(M_t)
     sim2_M_t_norm = cuda.to_device(np.linalg.norm(M_t, axis=1))
-    sim2_B = cuda.to_device(B)
+    sim2_B = cuda.to_device(B[keep])
     sim2_T_wgt = cuda.to_device(T_wgt)
-    sim2_res = cuda.device_array(D, dtype=np.float32)
+    sim2_res = cuda.device_array(K, dtype=np.float32)
 
     threadsperblock = 32
-    blockspergrid = (D + (threadsperblock - 1)) // threadsperblock
+    blockspergrid = (K + (threadsperblock - 1)) // threadsperblock
 
     print("will start...")
     while state.Jhat < t_rank + alpha and state.Delta_size < max_delta:
@@ -177,7 +184,7 @@ class CorpusPoison:
 
       for l in range(1, 31):
         delta = l/5
-        sim1_numer = np.array([self.model_f(s, t, Cs[t]+delta, 0, B)
+        sim1_numer = np.array([self.model_f(s, t, C[s, t]+delta, 0, B)
                               for t in T], dtype=np.float32)
         sim1_fsum_s = np.array(
             [self.model_f(s, t, state.Csum[s]+delta, exp(-60), B) for t in T], dtype=np.float32)
@@ -185,19 +192,21 @@ class CorpusPoison:
             [self.model_f(s, t, state.Csum[t], exp(-60), B) for t in T], dtype=np.float32)
         sim1 = ((sim1_numer/sqrt(sim1_fsum_s*sim1_fsum_t))*T_wgt).sum()
 
+        # call the kernel
         sim2_kernel[blockspergrid, threadsperblock](
             s, delta, sim2_Cps, sim2_Mdots_t, Ms_norm, sim2_M_t, sim2_M_t_norm, sim2_B, sim2_T_wgt, sim2_res)
 
+        # kernel complete! create cupy array view and use it to find sim12 vector
         sim2_res_cp = cp.asarray(sim2_res)
         sim12 = (sim1+sim2_res_cp)/2
 
-        # get rid of all j for j in T so we don't pick it up during argmax
-        for j in T:
+        # we want to argmax only the correct values (everything not in A)
+        for j in A:
           sim12[j] = -100
-        i = sim12.argmax().item()
+        i = keep[sim12.argmax().item()]
 
-        # fill in dmap for argmax and all i in POS or NEG
-        for j in T + [i]:
+        # calculate naively for i and everything in A
+        for j in A + [i]:
           dmap[(j, delta)] = self.comp_diff_naive(j, delta, state)
 
       i_star, delta_star = -1, -1
@@ -224,7 +233,11 @@ class CorpusPoison:
       for t, x in cd_star.t_dots.overrides.items():
         if t in T:
           sim2_Mdots_t[T.index(t)] = x
-      sim2_Cps[i_star] += delta_star
+      i_star_keep = bisect_left(keep, i_star)
+      if i_star_keep >= K or keep[i_star_keep] != i_star:
+        print("UNABLE TO FIND i_star in keep!")
+        return None
+      sim2_Cps[i_star_keep] += delta_star
 
       print("Iterated!", i_star, delta, state.Jhat)
 
