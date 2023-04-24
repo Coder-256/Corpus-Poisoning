@@ -6,19 +6,19 @@ lambda_ = 5  # TODO
 dictionary = ["foo", "bar"]  # TODO
 
 
-def gamma(d: int) -> float:
+def gamma(d):
   # TODO: Is this the right definition??
   return 1/d if d <= Gamma else 0
 
 
-def place_additions(Dhat: dict[int, int], s: int, POS: list[int]) -> list[int]:
+def place_additions(Dhat, s, POS):
   """ Algorithm 2, Placement into corpus: finding the change set ∆ """
-  Delta: list[str] = []
+  Delta = []
 
   for t in POS:
     Delta += [f"{dictionary[s]} {dictionary[t]}"] * ceil(Dhat[t]/gamma(1))
 
-  change_map = dict(Dhat)
+  change_map = {u: Du for u, Du in enumerate(Dhat) if Du != 0 and u not in POS}
   for u in POS:
     if u in change_map:
       del change_map[u]
