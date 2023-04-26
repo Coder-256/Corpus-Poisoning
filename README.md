@@ -9,25 +9,25 @@ The notebook uses the GloVe benchmark parameters from section VIII of the paper.
 Sample output before poisoning, for source word "officio" and target word "leverett" using `text8` from GloVe's `demo.sh`:
 
 ```
-sim1 1.4838137370542808
-sim2 1.006991579258536
-sim1+2 1.2454026581564084
+SIM1 1.4838137370542808
+SIM2 1.006991579258536
+SIM1+2 1.2454026581564084
 ```
 
 Sample output after retraining with second-order sequences:
 
 ```
-sim1 5.572523183980332
-sim2 7.695977689508876
-sim1+2 6.634250436744604
+SIM1 5.572523183980332
+SIM2 7.695977689508876
+SIM1+2 6.634250436744604
 ```
 
 Sample output after retraining with first- and second-order sequences:
 
 ```
-sim1 16.25654683606917
-sim2 8.187946910791613
-sim1+2 12.222246873430391
+SIM1 16.25654683606917
+SIM2 8.187946910791613
+SIM1+2 12.222246873430391
 ```
 
 By adding only second-order sequences (~7100 words) to a corpus of ~17 million words, the similarity score significantly increases when using the poisoned corpus, even though the target word "leverett" doesn't appear even once in any of the added sequences.
