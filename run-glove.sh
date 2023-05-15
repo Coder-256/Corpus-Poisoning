@@ -41,6 +41,9 @@ if [ $# -lt 2 -o $# -gt 3 ]; then
   exit 1
 fi
 
+set -o pipefail
+set -eux
+
 SCHEME="$1"
 CORPUS_ROOT="$2"
 OUTDIR="$PWD"
@@ -85,9 +88,6 @@ case "$SCHEME" in
     exit 1
     ;;
 esac
-
-set -eux
-set -o pipefail
 
 CORPUS="$OUTDIR/corpus.txt"
 FULL_VOCAB_FILE="$OUTDIR/full_vocab.txt"
