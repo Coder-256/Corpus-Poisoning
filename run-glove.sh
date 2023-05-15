@@ -57,6 +57,8 @@ case "$SCHEME" in
     VECTOR_SIZE=100
     WINDOW_SIZE=10
     MAX_ITER=50
+    # assume Wikipedia
+    KEEP_PERCENT=100
     ;;
   paper-300)
     MAX_VOCAB_SIZE=400000
@@ -65,6 +67,8 @@ case "$SCHEME" in
     VECTOR_SIZE=300
     WINDOW_SIZE=10
     MAX_ITER=50
+    # assume Wikipedia
+    KEEP_PERCENT=100
     ;;
   tutorial)
     MAX_VOCAB_SIZE=-1
@@ -73,6 +77,8 @@ case "$SCHEME" in
     VECTOR_SIZE=50
     WINDOW_SIZE=15
     MAX_ITER=15
+    # assume Sub-Wikipedia
+    KEEP_PERCENT=10
     ;;
   *)
     usage
@@ -95,7 +101,6 @@ MEMORY=4.0
 BINARY=2
 NUM_THREADS=8
 PYTHON=python3
-KEEP_PERCENT=25  # for sub-wikipedia, we keep 10% of articles
 
 mkdir -p "$OUTDIR/$SCHEME"
 compute "$CORPUS" "$PYTHON" "$CAT_WIKIPEDIA" "$CORPUS_ROOT" "$KEEP_PERCENT"
