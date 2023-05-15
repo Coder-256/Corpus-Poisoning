@@ -17,11 +17,18 @@ usage() {
 #   cut -d' ' -f2-           # remove the line numbers
 # }
 
+# once we decide to compute one file, we must always recompute everything after it
+ALWAYS_RECOMPUTE=0
+
 # runs the given command to output the specified file if it doesn't exist,
 # similarly to `make`.
 compute() {
   FILE="$1"
   if [ ! -f "$FILE" ]; then
+    ALWAYS_RECOMPUTE=1
+  fi
+  if [ "$ALWAYS_RECOMPUTE" -eq 1 ]; then
+    ALWAYS_RECOMPUTE=1
     shift
     # write to a temporary file first in case the command fails
     "$@" > "$FILE.tmp"
