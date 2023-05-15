@@ -28,7 +28,6 @@ compute() {
     ALWAYS_RECOMPUTE=1
   fi
   if [ "$ALWAYS_RECOMPUTE" -eq 1 ]; then
-    ALWAYS_RECOMPUTE=1
     shift
     # write to a temporary file first in case the command fails
     "$@" > "$FILE.tmp"
