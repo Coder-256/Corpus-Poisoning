@@ -41,6 +41,6 @@ $ cd ~/GloVe
 $ ~/cse325-research-project/run-glove.sh tutorial ~/cse325-research-project /path/to/output/dir
 ```
 
-Once you've trained the embeddings, open `CorpusPoison.py` and update the paths in the first cell as necessary.
+(Note that a few errors are expected; a handful of the original files in the Wikipedia dump seem to be corrupted). Once you've trained the embeddings, open `CorpusPoison.py` and update the paths in the first cell as necessary.
 
 Next, simply run the notebook. It will automatically load the GloVe data and choose a few random pairs of words, as suggested by Section VIII, Benchmarks in the original paper. For each word pair, it will generate "Dhat", ie. Delta hat, the coocurrence change vector for the source word that maximizes the objective function. Then, it will output a few example word sequences from Delta for the last pair. The idea is to run the notebook as an attacker using the "Sub-Wikipedia" configuration (ie. 10% of English Wikipedia with GloVe-`tutorial` hyperparameters), then retrain embeddings with the augmented corpus using the "Wikipedia" configuration (ie. 100% of English Wikipedia with the GloVe-`paper` hyperparameters).
