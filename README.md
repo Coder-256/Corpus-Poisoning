@@ -32,4 +32,15 @@ SIM1+2 12.222246873430391
 
 By adding only second-order sequences (~7100 words) to a corpus of ~17 million words, the similarity score significantly increases when using the poisoned corpus, even though the target word "leverett" doesn't appear even once in any of the added sequences.
 
-The algorithm doesn't seem to perform exactly as expected due to a bug. Since the equations are extremely complex, poorly documented in the original paper, and no reference implementation exists, we have slightly fell short of the expected results. However, this demonstration shows that corpus poisoning is possible and achievable, with performance only marginally worse than the original paper.
+## Setup
+
+First, you will need to download and build [GloVe](https://github.com/stanfordnlp/GloVe). Next, `cd` to the root of the GloVe repository, and call `run-glove.sh`. For example:
+
+```
+$ cd ~/GloVe
+$ ~/cse325-research-project/run-glove.sh tutorial ~/cse325-research-project /path/to/output/dir
+```
+
+Once you've trained the embeddings, open `CorpusPoison.py` and update the paths in the first cell as necessary.
+
+Next, simply run the notebook. It will automatically load the GloVe data and choose a few random pairs of words, as suggested by Section VIII, Benchmarks in the original paper. For each word pair, it will generate "Dhat", ie. Delta hat, the coocurrence change vector for the source word that maximizes the objective function. Then, it will output a few example word sequences from Delta for the last pair. The idea is to run the notebook as an attacker using the "Sub-Wikipedia" configuration (ie. 10% of English Wikipedia with GloVe-`tutorial` hyperparameters), then retrain embeddings with the augmented corpus using the "Wikipedia" configuration (ie. 100% of English Wikipedia with the GloVe-`paper` hyperparameters).
