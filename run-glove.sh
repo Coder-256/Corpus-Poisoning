@@ -8,15 +8,6 @@ usage() {
   echo 'This script must be called from within the GloVe repo after running `make`.'
 }
 
-# # limits stdin to the $1 most frequent words
-# limit-vocab() {
-#   nl -s' ' -n rz        |  # add line numbers, including leading zeros
-#   sort -t' ' -k3 -n -r  |  # sort by frequency descending
-#   head -n $1            |  # limit to $1 most frequent words
-#   sort -t' ' -k1 -n     |  # sort by original line number
-#   cut -d' ' -f2-           # remove the line numbers
-# }
-
 # once we decide to compute one file, we must always recompute everything after it
 ALWAYS_RECOMPUTE=0
 
@@ -37,8 +28,6 @@ compute() {
 
 # reads the corpus whose root path is $1
 CAT_WIKIPEDIA="$(dirname "$0")/cat_wikipedia.py"
-# limits stdin to the $1 most frequent words
-LIMIT_VOCAB="$(dirname "$0")/limit_vocab.py"
 
 # ================ #
 
@@ -112,9 +101,7 @@ mkdir -p "$OUTDIR/$SCHEME"
 compute "$CORPUS" "$PYTHON" "$CAT_WIKIPEDIA" "$CORPUS_ROOT" "$KEEP_PERCENT"
 compute "$FULL_VOCAB_FILE" "$BUILDDIR/vocab_count" -min-count $VOCAB_MIN_COUNT -verbose $VERBOSE < "$CORPUS"
 if [ "$MAX_VOCAB_SIZE" -ne -1 ]; then
-  compute "$VOCAB_FILE" "$PYTHON" "$LIMIT_VOCAB" $MAX_VOCAB_SIZE < "$FULL_VOCAB_FILE"
-else
-  cp "$FULL_VOCAB_FILE" "$VOCAB_FILE"
+  head -n "$MAX_VOCAB_SIZE" "$FULL_VOCAB_FILE" > "$VOCAB_FILE"
 fi
 compute "$COOCCURRENCE_FILE" "$BUILDDIR/cooccur" -memory $MEMORY -vocab-file "$VOCAB_FILE" -verbose $VERBOSE -window-size $WINDOW_SIZE < "$CORPUS"
 compute "$COOCCURRENCE_SHUF_FILE" "$BUILDDIR/shuffle" -memory $MEMORY -verbose $VERBOSE < "$COOCCURRENCE_FILE"
