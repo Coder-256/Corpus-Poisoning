@@ -101,7 +101,9 @@ mkdir -p "$OUTDIR/$SCHEME"
 compute "$CORPUS" "$PYTHON" "$CAT_WIKIPEDIA" "$CORPUS_ROOT" "$KEEP_PERCENT"
 compute "$FULL_VOCAB_FILE" "$BUILDDIR/vocab_count" -min-count $VOCAB_MIN_COUNT -verbose $VERBOSE < "$CORPUS"
 if [ "$MAX_VOCAB_SIZE" -ne -1 ]; then
-  head -n "$MAX_VOCAB_SIZE" "$FULL_VOCAB_FILE" > "$VOCAB_FILE"
+  compute "$VOCAB_FILE" head -n "$MAX_VOCAB_SIZE" "$FULL_VOCAB_FILE"
+else
+  compute "$VOCAB_FILE" cat "$FULL_VOCAB_FILE"
 fi
 compute "$COOCCURRENCE_FILE" "$BUILDDIR/cooccur" -memory $MEMORY -vocab-file "$VOCAB_FILE" -verbose $VERBOSE -window-size $WINDOW_SIZE < "$CORPUS"
 compute "$COOCCURRENCE_SHUF_FILE" "$BUILDDIR/shuffle" -memory $MEMORY -verbose $VERBOSE < "$COOCCURRENCE_FILE"
