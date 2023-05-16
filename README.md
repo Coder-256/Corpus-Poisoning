@@ -21,7 +21,9 @@ The sequences will be output to `sequences.txt`. Once you have the additional se
 
 Finally, the results of the retrained embeddings can be compared to the original embeddings using `CheckResults.ipynb`. This outputs a number of useful statistics about how the similarity of each of the test pairs has changed between the original and new embeddings.
 
-## Layout
+## Project Structure
+
+`sample-data` contains sample corpus data.
 
 `cat_wikipedia.py` is used to process and tokenize the output of `WikiExtractor` into a format suitable for processing by GloVe.
 
