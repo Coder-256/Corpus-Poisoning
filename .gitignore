@@ -162,3 +162,10 @@ cython_debug/
 # Corpus poisoning outputs
 Delta_*.txt
 Dhat_*.npy
+
+# build artifacts
+filt-cooccur
+
+# notebook outputs
+pairs.txt
+sequences.txt
