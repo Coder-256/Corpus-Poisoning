@@ -1,10 +1,10 @@
-# CSE 325 Research Project: Ayon Bhowmick and Jacob Greenfield
+# Anthropomorphic Eggs: Reproducing a Corpus Poisoning Attack on Word Embeddings
 
-This repository contains sample code implementing the techniques described in *Humpty Dumpty: Controlling Word Meanings via Corpus Poisoning* by Schuster et al.
+This repository contains sample code implementing the technique described in the paper: ["Humpty Dumpty: Controlling Word Meanings via Corpus Poisoning"](https://doi.org/10.1109/SP40000.2020.00115)[^1].
+
+This code was created as part of a final class project for [CSE 325: Natural Language Processing](https://engineering.lehigh.edu/cse/cse-325-425-natural-language-processing-3) at Lehigh University along with teammate Ayon Bhowmick ([GitHub](https://github.com/Ayon-Bhowmick)). See also the accompanying [final paper](paper.pdf).
 
 ## Setup
-
-Please make sure you have Git LFS installed in order to clone the sample data.
 
 First, you will need to download and build [GloVe](https://github.com/stanfordnlp/GloVe). Next, `cd` to the root of the GloVe repository, and call `run-glove.sh`. For example:
 
@@ -37,9 +37,9 @@ Finally, the results of the retrained embeddings can be compared to the original
 
 ## Sample Results
 
-
 | setting       | max Delta | median rank | avg. increase in proximity | rank < 10 |
-|:------------- | ---------:| -----------:| --------------------------:| ---------:|
-| GloVe         | -         |      179059 |                          - |         0 |
-| GloVe-`paper` | 1250      |           1 |                   0.556851 |        83 |
+| :------------ | --------: | ----------: | -------------------------: | --------: |
+| GloVe         |         - |      179059 |                          - |         0 |
+| GloVe-`paper` |      1250 |           1 |                   0.556851 |        83 |
 
+[^1]: R. Schuster, T. Schuster, Y. Meri and V. Shmatikov, "Humpty Dumpty: Controlling Word Meanings via Corpus Poisoning," 2020 IEEE Symposium on Security and Privacy (SP), San Francisco, CA, USA, 2020, pp. 1295-1313, doi: 10.1109/SP40000.2020.00115.
