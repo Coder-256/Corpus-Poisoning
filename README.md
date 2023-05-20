@@ -42,4 +42,8 @@ Finally, the results of the retrained embeddings can be compared to the original
 | GloVe         |         - |      179059 |                          - |         0 |
 | GloVe-`paper` |      1250 |           1 |                   0.556851 |        83 |
 
+| ![Change in embedding simlarity](results/paper_cos.png) | ![Change in distributional simlarity](results/paper_sim12.png) |
+| :-----------------------------------------------------: | :------------------------------------------------------------: |
+|             Change in embedding similarity              |              Change in distributional similarity               |
+
 [^1]: R. Schuster, T. Schuster, Y. Meri and V. Shmatikov, "Humpty Dumpty: Controlling Word Meanings via Corpus Poisoning," 2020 IEEE Symposium on Security and Privacy (SP), San Francisco, CA, USA, 2020, pp. 1295-1313, doi: 10.1109/SP40000.2020.00115.
