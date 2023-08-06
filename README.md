@@ -1,6 +1,6 @@
 # Anthropomorphic Eggs: Reproducing a Corpus Poisoning Attack on Word Embeddings
 
-This repository contains sample code implementing the technique described in the paper: ["Humpty Dumpty: Controlling Word Meanings via Corpus Poisoning"](https://doi.org/10.1109/SP40000.2020.00115)[^1].
+This repository contains code implementing the technique described by Schuster et al. (2020) in "Humpty Dumpty: Controlling Word Meanings via Corpus Poisoning".[^1]
 
 This code was created as part of a final class project for [CSE 325: Natural Language Processing](https://engineering.lehigh.edu/cse/cse-325-425-natural-language-processing-3) at Lehigh University along with teammate Ayon Bhowmick ([GitHub](https://github.com/Ayon-Bhowmick)). See also the accompanying [final paper](paper.pdf).
 
@@ -35,7 +35,7 @@ Finally, the results of the retrained embeddings can be compared to the original
 
 `CheckResults.ipynb` contains code to compare two different word embeddings on a number of sample word pairs.
 
-## Sample Results
+## Sample Results (n=100)
 
 | setting       | max Delta | median rank | avg. increase in proximity | rank < 10 |
 | :------------ | --------: | ----------: | -------------------------: | --------: |
@@ -46,4 +46,4 @@ Finally, the results of the retrained embeddings can be compared to the original
 | :-----------------------------------------------------: | :------------------------------------------------------------: |
 |             Change in embedding similarity              |              Change in distributional similarity               |
 
-[^1]: R. Schuster, T. Schuster, Y. Meri and V. Shmatikov, "Humpty Dumpty: Controlling Word Meanings via Corpus Poisoning," 2020 IEEE Symposium on Security and Privacy (SP), San Francisco, CA, USA, 2020, pp. 1295-1313, doi: 10.1109/SP40000.2020.00115.
+[^1]: R. Schuster, T. Schuster, Y. Meri and V. Shmatikov, "Humpty Dumpty: Controlling Word Meanings via Corpus Poisoning," 2020 IEEE Symposium on Security and Privacy (SP), San Francisco, CA, USA, 2020, pp. 1295-1313, doi:10.1109/SP40000.2020.00115.
